@@ -18,8 +18,15 @@ export class OfflineManager {
   private syncInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Listen for actual network changes
+    // Check if manually set to offline mode
     if (typeof window !== 'undefined') {
+      const isManuallyOffline = localStorage.getItem('edgefleet-offline-mode') === 'true';
+      if (isManuallyOffline) {
+        this._isOnline = false;
+        this._status = 'offline';
+      }
+      
+      // Listen for actual network changes
       window.addEventListener('online', () => {
         if (!this.isManuallyOffline) {
           this.setOnline();
@@ -32,7 +39,9 @@ export class OfflineManager {
     }
 
     // Start sync interval when online
-    this.startSyncInterval();
+    if (this._status !== 'offline') {
+      this.startSyncInterval();
+    }
   }
 
   get isOnline(): boolean {

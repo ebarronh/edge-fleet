@@ -68,11 +68,47 @@ function App() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [syncQueueSize, setSyncQueueSize] = useState(0);
   const [syncStats, setSyncStats] = useState<{ pendingItems: number; totalDataSize: string; compressedSize: string; bandwidthSaved: string; costSaved: string } | null>(null);
+  
+  // Initialize vessel in database on mount
+  useEffect(() => {
+    const initVessel = async () => {
+      try {
+        // Check if vessel exists
+        const existingVessel = await db.vessels.get(VESSEL_ID);
+        if (!existingVessel) {
+          // Create vessel if it doesn't exist
+          await db.vessels.add({
+            id: VESSEL_ID,
+            name: vesselData.name,
+            type: vesselData.type as 'cargo' | 'tanker' | 'container',
+            status: offlineManager.status === 'offline' ? 'offline' : 'active',
+            lastSeen: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      } catch (error) {
+        console.error('Failed to initialize vessel in DB:', error);
+      }
+    };
+    
+    initVessel();
+  }, []);
 
   // Listen to offline manager status changes
   useEffect(() => {
-    const unsubscribe = offlineManager.addListener((status) => {
+    const unsubscribe = offlineManager.addListener(async (status) => {
       setConnectionStatus(status);
+      
+      // Update vessel status in database when connection status changes
+      try {
+        await db.vessels.update(VESSEL_ID, {
+          status: status === 'offline' ? 'offline' : 'active',
+          lastSeen: new Date()
+        });
+      } catch (error) {
+        console.error('Failed to update vessel status in DB:', error);
+      }
     });
 
     // Update sync queue size periodically
@@ -96,6 +132,11 @@ function App() {
     // Connect to WebSocket server only when online
     const connectWebSocket = () => {
       if ((connectionStatus as string) === 'offline') {
+        // Close existing connection when going offline
+        if (ws) {
+          ws.close();
+          setWs(null);
+        }
         return;
       }
       
@@ -106,7 +147,7 @@ function App() {
           console.log('Connected to WebSocket server');
           setWs(websocket);
           
-          // Identify this vessel to the server
+          // Identify this vessel to the server with current connection status
           websocket.send(JSON.stringify({
             type: 'vessel-connected',
             vessel: {
@@ -114,7 +155,7 @@ function App() {
               name: vesselData.name,
               port: window.location.port,
               type: vesselData.type,
-              status: connectionStatus === 'offline' ? 'offline' : 'active'
+              status: 'active' // When we connect, we're active
             }
           }));
         };
@@ -122,7 +163,7 @@ function App() {
         websocket.onclose = () => {
           console.log('WebSocket connection closed');
           setWs(null);
-          // Reconnect after 5 seconds if online
+          // Reconnect after 5 seconds if still online
           if ((connectionStatus as string) !== 'offline') {
             setTimeout(connectWebSocket, 5000);
           }
@@ -212,13 +253,48 @@ function App() {
 
   // Send status updates when connection status changes
   useEffect(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (connectionStatus === 'offline' && ws && ws.readyState === WebSocket.OPEN) {
+      // When going offline, send the offline status and wait for confirmation before closing
+      console.log('Going offline, sending status update...');
+      
+      const offlineMessage = JSON.stringify({
+        type: 'vessel-status-update',
+        vessel: {
+          id: VESSEL_ID,
+          name: vesselData.name,
+          status: 'offline',
+          position: vesselData.position,
+          sensorData: sensorData,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Send the message and wait a bit longer to ensure it's transmitted
+      ws.send(offlineMessage);
+      
+      // Also send a direct offline notification
+      ws.send(JSON.stringify({
+        type: 'vessel-going-offline',
+        vessel: {
+          id: VESSEL_ID,
+          name: vesselData.name
+        }
+      }));
+      
+      // Close the connection after ensuring messages are sent
+      setTimeout(() => {
+        console.log('Closing WebSocket connection...');
+        ws.close();
+      }, 500); // Give more time for messages to be sent
+      
+    } else if (connectionStatus === 'online' && ws && ws.readyState === WebSocket.OPEN) {
+      // When online, send active status
       ws.send(JSON.stringify({
         type: 'vessel-status-update',
         vessel: {
           id: VESSEL_ID,
           name: vesselData.name,
-          status: connectionStatus === 'offline' ? 'offline' : 'active',
+          status: 'active',
           position: vesselData.position,
           sensorData: sensorData,
           timestamp: new Date().toISOString()

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Database, Check, X, RefreshCw, AlertTriangle, Cloud } from 'lucide-react';
 import { db } from '@edge-fleet/shared';
 
@@ -90,9 +91,9 @@ export function SyncVerificationDashboard() {
         <span>Verify Sync</span>
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gradient-to-br from-slate-900 to-blue-900 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full">
+      {isOpen && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 999999 }}>
+          <div className="bg-gradient-to-br from-slate-900 to-blue-900 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full" style={{ zIndex: 1000000 }}>
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-6 rounded-t-lg">
               <div className="flex items-center justify-between">
@@ -241,7 +242,8 @@ export function SyncVerificationDashboard() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

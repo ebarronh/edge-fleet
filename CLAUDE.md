@@ -4,87 +4,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EdgeFleet is a monorepo demo showcasing edge computing fleet management with real-time WebSocket communication and Supabase integration. It demonstrates a microservices architecture with:
+EdgeFleet is a demo monorepo for edge computing fleet management with real-time WebSocket communication and Supabase integration. **This is for demo purposes with a real Supabase database.**
 
-- **Fleet Command** (Port 3000): Central command interface showing all connected vessels
-- **Vessel Apps** (Ports 3001-3003): Individual vessel interfaces with position tracking  
-- **WebSocket Server** (Port 3999): Real-time communication hub
-- **Supabase Client**: Shared package for database operations
+## Essential Commands
 
-## Common Commands
-
-### Development Setup
 ```bash
-# Install all dependencies
-npm install
+# Setup and start complete demo
+npm install && ./start-demo.sh
 
-# Start the complete demo (all services)
-./start-demo.sh
-
-# Build all packages and apps
-npm run build
-
-# Run linting across all apps
-npm run lint
-
-# Run type checking across all apps
-npm run type-check
+# Before marking any task complete, ALWAYS run:
+npm run build && npm run lint && npm run type-check && npm test
 ```
 
-### Individual Service Commands
-```bash
-# Build shared Supabase client package (required first)
-cd packages/supabase-client && npm run build
+## Task Completion Requirements
 
-# Build and start WebSocket server
-cd apps/websocket-server && npm run build && npm start
+**CRITICAL**: Every task must pass ALL checks before completion:
+1. `npm run build` - Must build successfully  
+2. `npm run lint` - Must pass linting
+3. `npm run type-check` - Must pass type checking
+4. `npm test` - Must pass all tests
+5. Basic UI validation using Puppeteer MCP (if UI changes)
 
-# Start Fleet Command interface
-cd apps/fleet-command && npm run dev
+## Testing Framework
 
-# Start vessel apps on different ports
-cd apps/vessel-app && npm run dev        # Port 3001
-cd apps/vessel-app && npm run dev:3002   # Port 3002  
-cd apps/vessel-app && npm run dev:3003   # Port 3003
-```
+**Use Vitest** for all React TypeScript testing:
+- Seamless Vite integration with shared configuration
+- Jest-compatible API for easy migration
+- Built-in TypeScript/JSX support via esbuild
+- Fast HMR test iteration
 
-### App-Specific Development
-```bash
-# Lint individual apps
-cd apps/fleet-command && npm run lint
-cd apps/vessel-app && npm run lint
+Setup: Add Vitest to each React app's package.json and configure in vite.config.ts with `globals: true`, `environment: 'jsdom'`.
 
-# Type check individual apps
-cd apps/fleet-command && npm run type-check
-cd apps/vessel-app && npm run type-check
-cd apps/websocket-server && npm run type-check
-```
+## MCP Integration Capabilities
 
-## Architecture Notes
+### Supabase MCP
+- **Database Operations**: Create/read/update/delete with advanced filtering
+- **Schema Management**: Apply migrations, manage tables via `apply_migration` tool
+- **Safety Features**: Three-tier operation safety (safe/write/destructive), read-only mode protection
+- **Best Practice**: Use database branching for development to protect production data
 
-### Monorepo Structure
-- Uses Turborepo for workspace management
-- Shared dependencies through workspace protocol (`workspace:*`)
-- Centralized build pipeline with dependency ordering
+### Puppeteer MCP  
+- **UI Testing**: Automate browser interactions, form filling, navigation
+- **Screenshot Validation**: Capture visual regression testing evidence
+- **Console Monitoring**: Access browser logs for debugging
+- **Integration**: Use for basic UI validation before task completion
 
-### Key Dependencies
-- **React + TypeScript + Vite**: Frontend applications
-- **WebSocket (ws)**: Real-time communication server
-- **Supabase**: Database integration and real-time features
-- **Turborepo**: Monorepo orchestration
+## Architecture
 
-### Database Schema
-The project expects Supabase tables:
-- `vessels`: Stores vessel information, status, and position data
-- `sync_logs`: Tracks synchronization events and actions
+- **Monorepo**: Turborepo with shared Supabase client package
+- **Communication**: WebSocket server (3999) + Supabase real-time features
+- **Ports**: Fleet Command (3000), Vessels (3001-3003), WebSocket (3999)
+- **Dependencies**: Uses `file:` references instead of `workspace:` for npm compatibility
 
-### Configuration
-- Environment files (`.env`) required for Supabase credentials
-- Claude MCP configuration (`claude-mcp-config.json`) for Supabase integration
-- All services configured to work together via localhost ports
+## Development Rules
 
-### Communication Flow
-1. Vessel apps connect to WebSocket server (port 3999)
-2. Vessel apps register themselves in Supabase on startup
-3. Fleet Command monitors all vessels via WebSocket and Supabase
-4. Real-time position updates flow through WebSocket to all connected clients
+- Never sign commits with Claude Code
+- Always validate UI changes with Puppeteer MCP when applicable
+- Use Supabase MCP for safe database operations with proper safety tiers
+- Test everything before task completion

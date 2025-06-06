@@ -39,6 +39,21 @@ class EdgeFleetWebSocketServer {
         const client = this.clients.get(ws);
         if (client) {
           console.log(`Client disconnected: ${client.type} ${client.name || client.id}`);
+          
+          // If a vessel disconnects, notify Fleet Command that it's offline
+          if (client.type === 'vessel') {
+            this.broadcastToFleetCommand({
+              type: 'vessel-status-update',
+              vessel: {
+                id: client.id,
+                name: client.name,
+                status: 'offline',
+                timestamp: new Date().toISOString()
+              }
+            });
+            console.log(`Notified Fleet Command that ${client.name} is offline`);
+          }
+          
           this.clients.delete(ws);
           this.broadcastUpdate();
         }

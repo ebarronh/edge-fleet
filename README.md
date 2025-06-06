@@ -1,172 +1,294 @@
-# EdgeFleet Demo
+# EdgeFleet: Maritime Edge Computing Platform
 
-A monorepo demo project showcasing edge computing fleet management with real-time WebSocket communication and Supabase integration.
+A comprehensive maritime operations platform demonstrating **offline-first architecture**, **real-time WebSocket communication**, and **edge computing** capabilities for fleet management. Built as a modern monorepo showcasing distributed systems, data synchronization, and maritime-specific UI/UX patterns.
 
-## Architecture
+## 🌊 What is EdgeFleet?
 
-- **Fleet Command** (Port 3000): Central command interface showing all connected vessels
-- **Vessel Apps** (Ports 3001-3003): Individual vessel interfaces with position tracking
-- **WebSocket Server** (Port 3999): Real-time communication hub
-- **Supabase Client**: Shared package for database operations
+EdgeFleet simulates a real-world maritime operations environment where vessels operate in remote areas with intermittent connectivity. It demonstrates:
 
-## Setup
+- **Edge Computing**: Vessels continue operating independently when offline
+- **Offline-First Architecture**: Data persistence and queue management using IndexedDB
+- **Real-time Communication**: WebSocket-based fleet coordination
+- **Maritime Operations**: Authentic vessel monitoring with engine systems, navigation, and fleet tracking
 
-### 1. Prerequisites
+Perfect for testing edge computing scenarios, distributed systems patterns, and maritime industry workflows.
 
-- Node.js (v18 or higher)
-- npm
-- Supabase project with the following tables:
+## 🚢 Architecture Overview
 
-```sql
-create table vessels (
-  id text primary key,
-  name text not null,
-  status text default 'online',
-  last_position jsonb,
-  created_at timestamp with time zone default now()
-);
+```
+Fleet Command Center (Port 3000)
+├── Real-time vessel monitoring
+├── Fleet tracking map with live positions  
+├── Sync verification dashboard
+└── Offline vessel detection with last-seen timestamps
 
-create table sync_logs (
-  id uuid default gen_random_uuid() primary key,
-  vessel_id text references vessels(id),
-  action text,
-  data jsonb,
-  created_at timestamp with time zone default now()
-);
+Vessel Applications (Ports 3001-3003)
+├── Individual bridge control systems
+├── Engine monitoring with animated gauges
+├── Offline data persistence (IndexedDB)
+├── Automatic sync queue management
+└── Maritime-themed dashboard UI
 
-alter table vessels enable row level security;
-alter table sync_logs enable row level security;
-create policy "Allow all for demo" on vessels for all using (true);
-create policy "Allow all for demo" on sync_logs for all using (true);
+WebSocket Server (Port 3999)
+├── Real-time vessel-to-fleet communication
+├── Connection status broadcasting
+├── Offline notification handling
+└── Message routing and relay
+
+Shared Packages
+├── Dexie.js database with sync queue
+├── Offline manager with localStorage persistence
+├── Maritime simulation engine
+└── Supabase client for cloud sync
 ```
 
-### 2. Configuration
+## 🛠 Technology Stack
 
-The first time you run the demo, configuration files will be created automatically:
+### Frontend Technologies
+- **React 18** with TypeScript for type-safe UI development
+- **Vite** for fast development and optimized builds
+- **Tailwind CSS** with maritime-themed design system
+- **Lucide React** for consistent iconography
 
+### Data & Storage
+- **Dexie.js** for IndexedDB management and offline data persistence
+- **Supabase** for cloud database and real-time features
+- **LocalStorage** for offline mode preferences
+- **JSON** for WebSocket message protocols
+
+### Communication & Architecture
+- **WebSocket (ws)** for real-time bidirectional communication
+- **Turborepo** for efficient monorepo management
+- **TypeScript** throughout for type safety and developer experience
+- **Node.js** for WebSocket server and tooling
+
+### Edge Computing Features
+- **Offline-first data architecture** with automatic sync queues
+- **Data compression** with bandwidth usage calculations
+- **Connection status management** with manual offline toggle
+- **Persistent offline mode** that survives page refreshes
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js** (v18 or higher)
+- **npm** (comes with Node.js)
+- **Git** for cloning the repository
+
+### 1. Clone and Install
 ```bash
-# Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/ebarronh/edge-fleet.git
 cd edge-fleet
-
-# Install dependencies and create config files
 npm install
-./start-demo.sh
 ```
 
-Then update the generated configuration files with your Supabase credentials:
-
-**apps/fleet-command/.env:**
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_WS_URL=ws://localhost:3999
-```
-
-**apps/vessel-app/.env:**
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_WS_URL=ws://localhost:3999
-VITE_PORT=3001
-```
-
-**claude-mcp-config.json** (for Claude Code MCP integration):
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@supabase/mcp-server-supabase@latest",
-        "--url", "https://your-project-id.supabase.co",
-        "--anon-key", "your-anon-key-here"
-      ]
-    }
-  }
-}
-```
-
-### 3. Activate Claude MCP Config (Optional)
-
-To use the Supabase MCP server with Claude Code:
-
-```bash
-# Use the config for this session
-claude-code --mcp-config ./claude-mcp-config.json
-
-# Or set as default (adjust path as needed)
-cp claude-mcp-config.json ~/.config/claude-code/config.json
-```
-
-### 4. Start the Demo
-
+### 2. Start the Complete Demo
 ```bash
 ./start-demo.sh
 ```
 
-This will start all services:
-- Fleet Command: http://localhost:3000
-- Vessel App 1: http://localhost:3001
-- Vessel App 2: http://localhost:3002
-- Vessel App 3: http://localhost:3003
-- WebSocket Server: ws://localhost:3999
+This launches all services simultaneously:
+- **Fleet Command Center**: http://localhost:3000
+- **MV Pacific Explorer**: http://localhost:3001 (cargo vessel)
+- **SS Northern Star**: http://localhost:3002 (tanker vessel)
+- **MV Coastal Pioneer**: http://localhost:3003 (container vessel)
+- **WebSocket Server**: ws://localhost:3999
 
-## Features
+### 3. Test Edge Computing Scenarios
 
-- ✅ Real-time vessel tracking via WebSocket
-- ✅ Automatic vessel registration in Supabase
-- ✅ Position updates and sync logging
-- ✅ Connection status monitoring
-- ✅ Multi-vessel simulation (3 vessel instances)
-- ✅ Turborepo monorepo structure
-- ✅ TypeScript throughout
+#### Offline Mode Testing
+1. Open any vessel app (ports 3001-3003)
+2. Click **"Go Offline"** to simulate connectivity loss
+3. Observe data continuing to be collected and stored locally
+4. Check Fleet Command to see vessel marked as offline with timestamp
+5. Click **"Go Online"** to restore connectivity and sync data
 
-## Development
+#### Data Persistence Testing
+1. Put a vessel offline
+2. Refresh the browser page
+3. Vessel remains in offline mode (persistent across sessions)
+4. Data collection continues seamlessly
 
-### Individual Commands
+#### Fleet Monitoring
+1. Open Fleet Command Center (port 3000)
+2. View real-time vessel positions on the tracking map
+3. Monitor vessel status with live engine metrics
+4. Use **"Verify Sync"** to inspect local vs cloud data integrity
 
+## 🔬 Edge Computing Demonstrations
+
+### Offline-First Data Architecture
+- **Persistent Storage**: All vessel data stored in IndexedDB using Dexie.js
+- **Sync Queue Management**: Changes queued automatically when offline
+- **Data Compression**: Bandwidth savings calculated and displayed
+- **Conflict Resolution**: Automatic sync when connectivity restored
+
+### Real-time Communication Patterns
+- **WebSocket Heartbeats**: Connection monitoring and automatic reconnection
+- **Message Broadcasting**: Fleet-wide status updates and position sharing
+- **Graceful Degradation**: Seamless transition between online/offline modes
+- **Status Propagation**: Immediate notification of vessel connectivity changes
+
+### Maritime-Specific Features
+- **Engine System Monitoring**: RPM, fuel rate, temperature, oil pressure
+- **Navigation Display**: Speed, heading with animated compass
+- **Fleet Tracking**: Multi-vessel position visualization
+- **Critical Threshold Alerts**: Animated warnings for abnormal readings
+
+## 📊 Features & Capabilities
+
+### ✅ Phase 1 Complete Features
+- **True offline-first architecture** with IndexedDB persistence
+- **Animated engine gauges** with critical threshold detection
+- **Real-time vessel position tracking** on fleet map
+- **Sync verification dashboard** with compression metrics
+- **WebSocket communication** with automatic reconnection
+- **Maritime-themed UI** with authentic vessel bridge aesthetics
+- **Data compression** with bandwidth and cost savings calculations
+- **Offline status persistence** across browser sessions
+- **Multi-vessel simulation** with different vessel types
+- **Connection status indicators** with last-seen timestamps
+
+### 🔄 Live Sync & Monitoring
+- **Real-time position updates** every 5 seconds when online
+- **Sensor data collection** every 2 seconds (engine metrics)
+- **Automatic sync** when returning online from offline mode
+- **Sync queue visualization** showing pending data items
+- **Bandwidth usage tracking** with data compression metrics
+
+### 🛡 Edge Computing Resilience
+- **Network outage simulation** with manual offline toggle
+- **Data integrity verification** between local and cloud storage
+- **Queue management** with automatic retry mechanisms
+- **Connection monitoring** with graceful degradation
+
+## 💻 Development Guide
+
+### Individual Service Commands
 ```bash
-# Install dependencies
-npm install
-
-# Build shared packages
+# Build all packages
 npm run build
 
-# Start WebSocket server
+# Start WebSocket server only
 cd apps/websocket-server && npm start
 
-# Start Fleet Command
+# Start Fleet Command only  
 cd apps/fleet-command && npm run dev
 
-# Start a vessel app
-cd apps/vessel-app && npm run dev
-cd apps/vessel-app && npm run dev:3002
-cd apps/vessel-app && npm run dev:3003
+# Start individual vessels
+cd apps/vessel-app && npm run dev        # Port 3001
+cd apps/vessel-app && npm run dev:3002   # Port 3002
+cd apps/vessel-app && npm run dev:3003   # Port 3003
 ```
 
 ### Project Structure
-
 ```
-edgefleet/
+edge-fleet/
 ├── apps/
-│   ├── fleet-command/     # Fleet management interface
-│   ├── vessel-app/        # Vessel interface template
-│   └── websocket-server/  # WebSocket communication server
+│   ├── fleet-command/         # Fleet Command Center (React + Vite)
+│   │   ├── src/
+│   │   │   ├── App.tsx        # Main fleet dashboard
+│   │   │   └── components/    # Sync verification, vessel cards
+│   │   └── package.json
+│   ├── vessel-app/            # Vessel Bridge System (React + Vite)
+│   │   ├── src/
+│   │   │   ├── App.tsx        # Vessel dashboard with engine monitoring
+│   │   │   └── components/    # Animated gauges, navigation displays
+│   │   └── package.json
+│   └── websocket-server/      # Communication Hub (Node.js + ws)
+│       ├── src/
+│       │   └── server.ts      # WebSocket server with message routing
+│       └── package.json
 ├── packages/
-│   └── supabase-client/   # Shared Supabase client library
-├── start-demo.sh          # Demo startup script
-└── claude-mcp-config.json # MCP server configuration
+│   └── shared/                # Shared Libraries
+│       ├── src/
+│       │   ├── db.ts          # Dexie.js database with sync queue
+│       │   ├── offline.ts     # Offline manager with localStorage
+│       │   ├── simulation.ts  # Vessel movement simulation
+│       │   └── types.ts       # TypeScript interfaces
+│       └── package.json
+├── specs/                     # Documentation
+│   ├── phase-1.md            # Phase 1 requirements specification
+│   └── initial-setup.md      # Setup instructions
+├── start-demo.sh             # Complete demo launcher
+├── demo-phase-1.md           # Demo guide for product managers
+└── CLAUDE.md                 # Development guidelines
 ```
 
-## Phase 0 Status
+### Testing & Validation
+```bash
+# Run all builds (required before demo)
+npm run build
 
-This is Phase 0 of the EdgeFleet demo, focusing on:
-- ✅ Basic connectivity between all components
-- ✅ Vessel registration and tracking
-- ✅ Real-time position updates
-- ✅ WebSocket communication
-- ✅ Supabase integration
+# Run linting
+npm run lint
 
-Ready for Phase 1 expansion with advanced edge computing features.
+# Run type checking  
+npm run type-check
+
+# Run tests
+npm run test
+```
+
+## 🎯 Use Cases & Testing Scenarios
+
+### Maritime Operations Testing
+- **Fleet Coordination**: Multiple vessels operating with real-time position sharing
+- **Emergency Scenarios**: Vessel goes offline, fleet command tracks last known position
+- **Data Synchronization**: Large amounts of sensor data syncing efficiently when online
+- **Bandwidth Optimization**: Data compression reducing transmission costs
+
+### Edge Computing Validation
+- **Offline Resilience**: Applications continue functioning without internet
+- **Data Persistence**: Critical information never lost during connectivity issues
+- **Automatic Recovery**: Seamless sync when connectivity restored
+- **Resource Efficiency**: Minimal bandwidth usage through compression
+
+### Distributed Systems Patterns
+- **Message Broadcasting**: WebSocket communication patterns
+- **State Management**: Distributed state across multiple applications
+- **Conflict Resolution**: Handling data conflicts during sync
+- **Connection Monitoring**: Heartbeat and reconnection strategies
+
+## 🌐 Cloud Integration (Optional)
+
+EdgeFleet can optionally integrate with Supabase for cloud storage and real-time features:
+
+1. Create a Supabase project at https://supabase.com
+2. Set up tables using the SQL schema in `specs/initial-setup.md`
+3. Configure environment variables in `.env` files
+4. Enable real-time subscriptions for live fleet coordination
+
+*Note: The demo works fully offline without any cloud configuration required.*
+
+## 🔧 Troubleshooting
+
+### Common Issues
+- **Port conflicts**: Ensure ports 3000-3003 and 3999 are available
+- **WebSocket connection**: Check that the WebSocket server (port 3999) is running
+- **Build errors**: Run `npm run build` before starting development servers
+- **Browser storage**: Clear IndexedDB if experiencing data sync issues
+
+### Reset Demo State
+```bash
+# Clear all local data and restart
+./start-demo.sh --clean
+```
+
+## 🚀 Future Roadmap
+
+### Phase 2: Advanced Edge Computing
+- **Mesh networking** between vessels
+- **Distributed consensus** for fleet coordination
+- **Edge AI** for predictive maintenance
+- **Satellite communication** simulation
+
+### Phase 3: Enterprise Features
+- **Multi-fleet management** 
+- **Advanced analytics** and reporting
+- **Integration APIs** for third-party systems
+- **Enhanced security** and authentication
+
+---
+
+**EdgeFleet** - Demonstrating the future of maritime edge computing with modern web technologies.

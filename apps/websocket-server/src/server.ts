@@ -39,6 +39,21 @@ class EdgeFleetWebSocketServer {
         const client = this.clients.get(ws);
         if (client) {
           console.log(`Client disconnected: ${client.type} ${client.name || client.id}`);
+          
+          // If a vessel disconnects, notify Fleet Command that it's offline
+          if (client.type === 'vessel') {
+            this.broadcastToFleetCommand({
+              type: 'vessel-status-update',
+              vessel: {
+                id: client.id,
+                name: client.name,
+                status: 'offline',
+                timestamp: new Date().toISOString()
+              }
+            });
+            console.log(`Notified Fleet Command that ${client.name} is offline`);
+          }
+          
           this.clients.delete(ws);
           this.broadcastUpdate();
         }
@@ -96,11 +111,32 @@ class EdgeFleetWebSocketServer {
           this.broadcastToFleetCommand({
             type: 'vessel-update',
             vessel: {
-              id: client.id,
-              name: client.name,
-              position: message.vessel?.position
+              id: message.vessel?.id || client.id,
+              name: message.vessel?.name || client.name,
+              position: message.vessel?.position,
+              timestamp: message.vessel?.timestamp
             }
           });
+          break;
+
+        case 'vessel-status-update':
+          console.log(`Status update from ${client.name}: ${message.vessel?.status}`);
+          // Update client status in our records
+          if (message.vessel?.status) {
+            (client as any).status = message.vessel.status;
+          }
+          this.broadcastToFleetCommand({
+            type: 'vessel-status-update',
+            vessel: {
+              id: message.vessel?.id || client.id,
+              name: message.vessel?.name || client.name,
+              status: message.vessel?.status,
+              position: message.vessel?.position,
+              sensorData: message.vessel?.sensorData,
+              timestamp: message.vessel?.timestamp
+            }
+          });
+          this.broadcastUpdate();
           break;
 
         default:

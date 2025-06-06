@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Anchor, Compass, MapPin, Zap, Wifi, WifiOff } from 'lucide-react';
+import { Anchor, Compass, MapPin, Zap, Wifi, Database, CloudOff, Cloud } from 'lucide-react';
+import { db, offlineManager } from '@edge-fleet/shared';
+import type { ConnectionStatus } from '@edge-fleet/shared';
+import { AnimatedGauge } from './components/AnimatedGauge';
 
 // Mock data for fallback mode
 const getVesselId = () => {
@@ -46,52 +49,6 @@ const getVesselData = (vesselId: string) => {
 
 const vesselData = getVesselData(VESSEL_ID);
 
-// Simple gauge component
-const SimpleGauge = ({ value, max, label, unit, color }: { 
-  value: number; 
-  max: number; 
-  label: string; 
-  unit: string; 
-  color: string; 
-}) => {
-  const percentage = Math.min((value / max) * 100, 100);
-  
-  return (
-    <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-300">{label}</span>
-        <span className="text-xs text-gray-400">{unit}</span>
-      </div>
-      <div className="relative w-24 h-24 mx-auto mb-2">
-        <svg className="transform -rotate-90 w-24 h-24">
-          <circle
-            cx="48"
-            cy="48"
-            r="40"
-            stroke="currentColor"
-            strokeWidth="8"
-            fill="none"
-            className="text-gray-700"
-          />
-          <circle
-            cx="48"
-            cy="48"
-            r="40"
-            stroke={color}
-            strokeWidth="8"
-            fill="none"
-            strokeDasharray={`${percentage * 2.51} 251`}
-            className="transition-all duration-300"
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-lg font-bold text-white">{value.toFixed(1)}</span>
-        </div>
-      </div>
-      <div className="text-center text-xs text-gray-400">{label}</div>
-    </div>
-  );
-};
 
 // Mock sensor data generator  
 const generateSensorData = () => ({
@@ -107,12 +64,41 @@ console.log('Vessel App starting:', vesselData.name, 'on port:', window.location
 
 function App() {
   const [sensorData, setSensorData] = useState(generateSensorData());
-  const [isOnline, setIsOnline] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(offlineManager.status as ConnectionStatus);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [syncQueueSize, setSyncQueueSize] = useState(0);
+  const [syncStats, setSyncStats] = useState<{ pendingItems: number; totalDataSize: string; compressedSize: string; bandwidthSaved: string; costSaved: string } | null>(null);
+
+  // Listen to offline manager status changes
+  useEffect(() => {
+    const unsubscribe = offlineManager.addListener((status) => {
+      setConnectionStatus(status);
+    });
+
+    // Update sync queue size periodically
+    const syncInterval = setInterval(async () => {
+      const size = await db.getSyncQueueSize();
+      setSyncQueueSize(size);
+      
+      if (connectionStatus === 'syncing' || size > 0) {
+        const stats = await offlineManager.getSyncStats();
+        setSyncStats(stats);
+      }
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(syncInterval);
+    };
+  }, [connectionStatus]);
 
   useEffect(() => {
-    // Connect to WebSocket server
+    // Connect to WebSocket server only when online
     const connectWebSocket = () => {
+      if ((connectionStatus as string) === 'offline') {
+        return;
+      }
+      
       try {
         const websocket = new WebSocket('ws://localhost:3999');
         
@@ -128,7 +114,7 @@ function App() {
               name: vesselData.name,
               port: window.location.port,
               type: vesselData.type,
-              status: 'active'
+              status: connectionStatus === 'offline' ? 'offline' : 'active'
             }
           }));
         };
@@ -136,8 +122,10 @@ function App() {
         websocket.onclose = () => {
           console.log('WebSocket connection closed');
           setWs(null);
-          // Reconnect after 5 seconds
-          setTimeout(connectWebSocket, 5000);
+          // Reconnect after 5 seconds if online
+          if ((connectionStatus as string) !== 'offline') {
+            setTimeout(connectWebSocket, 5000);
+          }
         };
 
         websocket.onerror = (error) => {
@@ -154,36 +142,75 @@ function App() {
         };
       } catch (error) {
         console.error('Failed to connect to WebSocket:', error);
-        // Retry connection after 5 seconds
-        setTimeout(connectWebSocket, 5000);
+        // Retry connection after 5 seconds if online
+        if ((connectionStatus as string) !== 'offline') {
+          setTimeout(connectWebSocket, 5000);
+        }
       }
     };
 
     connectWebSocket();
 
-    // Update sensor data every 2 seconds
-    const interval = setInterval(() => {
-      setSensorData(generateSensorData());
-    }, 2000);
-
-    // Simulate occasional offline status
-    const connectivityInterval = setInterval(() => {
-      if (Math.random() < 0.1) { // 10% chance to toggle
-        setIsOnline(prev => !prev);
-      }
-    }, 10000);
-
     return () => {
-      clearInterval(interval);
-      clearInterval(connectivityInterval);
       if (ws) {
         ws.close();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
+
+  useEffect(() => {
+
+    // Update sensor data and persist to IndexedDB every 2 seconds
+    const interval = setInterval(async () => {
+      const newSensorData = generateSensorData();
+      setSensorData(newSensorData);
+      
+      // Persist sensor data to IndexedDB
+      try {
+        await db.addSensorData(VESSEL_ID, {
+          type: 'engine_rpm',
+          value: newSensorData.engineRPM,
+          unit: 'RPM',
+          timestamp: new Date()
+        });
+        
+        await db.addSensorData(VESSEL_ID, {
+          type: 'fuel_consumption',
+          value: newSensorData.fuelRate,
+          unit: 'L/h',
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error('Failed to persist sensor data:', error);
+      }
+    }, 2000);
+
+    // Update position every 5 seconds and persist to IndexedDB
+    const positionInterval = setInterval(async () => {
+      const position = {
+        latitude: vesselData.position.latitude + (Math.random() - 0.5) * 0.001,
+        longitude: vesselData.position.longitude + (Math.random() - 0.5) * 0.001,
+        heading: sensorData.heading,
+        speed: sensorData.speed,
+        timestamp: new Date()
+      };
+      
+      try {
+        await db.updateVesselPosition(VESSEL_ID, position);
+      } catch (error) {
+        console.error('Failed to persist position:', error);
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(positionInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Send status updates when online status changes
+  // Send status updates when connection status changes
   useEffect(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -191,7 +218,7 @@ function App() {
         vessel: {
           id: VESSEL_ID,
           name: vesselData.name,
-          status: isOnline ? 'active' : 'offline',
+          status: connectionStatus === 'offline' ? 'offline' : 'active',
           position: vesselData.position,
           sensorData: sensorData,
           timestamp: new Date().toISOString()
@@ -199,11 +226,11 @@ function App() {
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, ws]);
+  }, [connectionStatus, ws]);
 
-  // Send position updates periodically
+  // Send position updates periodically when online
   useEffect(() => {
-    if (ws && ws.readyState === WebSocket.OPEN && isOnline) {
+    if (ws && ws.readyState === WebSocket.OPEN && connectionStatus !== 'offline') {
       const positionInterval = setInterval(() => {
         ws.send(JSON.stringify({
           type: 'position-update',
@@ -223,7 +250,7 @@ function App() {
       return () => clearInterval(positionInterval);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ws, isOnline]);
+  }, [ws, connectionStatus]);
 
   const currentTime = new Date().toLocaleTimeString();
 
@@ -244,36 +271,73 @@ function App() {
             </div>
             
             <div className="flex items-center gap-4">
-              {isOnline ? (
-                <div className="flex items-center gap-2 px-3 py-1 bg-green-600/20 border border-green-500/30 rounded-lg">
-                  <Wifi className="w-4 h-4 text-green-400" />
-                  <span className="text-green-300 text-sm font-medium">Connected</span>
+              {connectionStatus === 'offline' ? (
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-lg">
+                  <CloudOff className="w-4 h-4 text-red-400" />
+                  <span className="text-red-300 text-sm font-medium">OFFLINE MODE</span>
+                </div>
+              ) : connectionStatus === 'syncing' ? (
+                <div className="flex items-center gap-2 px-3 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
+                  <Cloud className="w-4 h-4 text-yellow-400 animate-pulse" />
+                  <span className="text-yellow-300 text-sm font-medium">SYNCING...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-lg">
-                  <WifiOff className="w-4 h-4 text-red-400" />
-                  <span className="text-red-300 text-sm font-medium">OFFLINE</span>
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-600/20 border border-green-500/30 rounded-lg">
+                  <Wifi className="w-4 h-4 text-green-400" />
+                  <span className="text-green-300 text-sm font-medium">ONLINE</span>
+                </div>
+              )}
+              
+              {syncQueueSize > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/20 border border-blue-500/30 rounded-lg">
+                  <Database className="w-4 h-4 text-blue-400" />
+                  <span className="text-blue-300 text-sm font-medium">{syncQueueSize} pending</span>
                 </div>
               )}
               
               <button
-                onClick={() => setIsOnline(prev => !prev)}
+                onClick={() => offlineManager.toggleOffline()}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isOnline 
-                    ? 'bg-red-600/20 border border-red-500/30 text-red-300 hover:bg-red-600/30' 
-                    : 'bg-green-600/20 border border-green-500/30 text-green-300 hover:bg-green-600/30'
+                  connectionStatus === 'offline' 
+                    ? 'bg-green-600/20 border border-green-500/30 text-green-300 hover:bg-green-600/30' 
+                    : 'bg-red-600/20 border border-red-500/30 text-red-300 hover:bg-red-600/30'
                 }`}
               >
-                {isOnline ? 'Go Offline' : 'Go Online'}
+                {connectionStatus === 'offline' ? 'Go Online' : 'Go Offline'}
               </button>
               
               <div className="text-right text-white">
-                <div className="text-sm font-medium">All synced</div>
+                <div className="text-sm font-medium">
+                  {syncQueueSize > 0 ? `${syncQueueSize} items queued` : 'All synced'}
+                </div>
                 <div className="text-xs text-white/60">Last update: {currentTime}</div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Sync Stats Banner */}
+        {syncStats && syncQueueSize > 0 && (
+          <div className="px-6 py-3 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Database className="w-5 h-5 text-blue-400 animate-pulse" />
+                <div className="text-sm text-white">
+                  <span className="font-medium">Sync Queue:</span> {syncStats.pendingItems} items
+                </div>
+                <div className="text-sm text-white/70">
+                  {syncStats.totalDataSize} → {syncStats.compressedSize} 
+                  <span className="text-green-400 ml-2">({syncStats.bandwidthSaved} saved)</span>
+                </div>
+              </div>
+              {connectionStatus === 'syncing' && (
+                <div className="text-sm text-yellow-300">
+                  Syncing to cloud...
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Status Cards */}
         <div className="p-6">
@@ -327,33 +391,37 @@ function App() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4">
-              <SimpleGauge 
+              <AnimatedGauge 
                 value={sensorData.engineRPM} 
                 max={2000} 
                 label="Engine Speed" 
                 unit="RPM" 
-                color="#10b981" 
+                color="#10b981"
+                criticalThreshold={1800}
               />
-              <SimpleGauge 
+              <AnimatedGauge 
                 value={sensorData.fuelRate} 
                 max={30} 
                 label="Fuel Rate" 
                 unit="L/h" 
-                color="#f59e0b" 
+                color="#f59e0b"
+                criticalThreshold={25}
               />
-              <SimpleGauge 
+              <AnimatedGauge 
                 value={sensorData.engineTemp} 
                 max={120} 
                 label="Engine Temp" 
                 unit="°C" 
-                color="#ef4444" 
+                color="#ef4444"
+                criticalThreshold={100}
               />
-              <SimpleGauge 
+              <AnimatedGauge 
                 value={sensorData.oilPressure} 
                 max={60} 
                 label="Oil Pressure" 
                 unit="PSI" 
-                color="#3b82f6" 
+                color="#3b82f6"
+                criticalThreshold={50}
               />
             </div>
           </div>
@@ -366,12 +434,13 @@ function App() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4">
-              <SimpleGauge 
+              <AnimatedGauge 
                 value={sensorData.speed} 
                 max={25} 
                 label="Speed" 
                 unit="kt" 
-                color="#06b6d4" 
+                color="#06b6d4"
+                criticalThreshold={20}
               />
               <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex items-center justify-center">
                 <div className="relative w-24 h-24">

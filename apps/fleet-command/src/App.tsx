@@ -1,142 +1,270 @@
 import { useState, useEffect } from 'react';
-import { initSupabase, getAllVessels, checkConnection, Vessel } from '@edgefleet/supabase-client';
-import './App.css';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project-id.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key-here';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3999';
+import { Compass, Ship, Activity, AlertTriangle, Wifi } from 'lucide-react';
 
 function App() {
-  const [vessels, setVessels] = useState<Vessel[]>([]);
-  const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [vessels, setVessels] = useState([
+    { id: 'vessel-3001', name: 'MV Pacific Explorer', type: 'cargo', status: 'active' },
+    { id: 'vessel-3002', name: 'SS Northern Star', type: 'tanker', status: 'active' },
+    { id: 'vessel-3003', name: 'MV Coastal Pioneer', type: 'container', status: 'active' }
+  ]);
+
+  const [positions, setPositions] = useState<Record<string, { latitude: number; longitude: number; speed: number; heading: number }>>({
+    'vessel-3001': { latitude: 37.7749, longitude: -122.4194, speed: 12.5, heading: 245 },
+    'vessel-3002': { latitude: 38.1749, longitude: -123.4194, speed: 8.2, heading: 180 },
+    'vessel-3003': { latitude: 39.2749, longitude: -121.4194, speed: 15.1, heading: 95 }
+  });
+
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
   const [wsConnected, setWsConnected] = useState(false);
-  const [wsSocket, setWsSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    // Initialize Supabase
-    try {
-      initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
-      checkSupabaseConnection();
-    } catch (error) {
-      console.error('Failed to initialize Supabase:', error);
-    }
+    // Connect to WebSocket server
+    const connectWebSocket = () => {
+      try {
+        const websocket = new WebSocket('ws://localhost:3999');
+        
+        websocket.onopen = () => {
+          console.log('Fleet Command connected to WebSocket server');
+          setWs(websocket);
+          setWsConnected(true);
+          
+          // Identify as fleet command
+          websocket.send(JSON.stringify({
+            type: 'fleet-command-connected'
+          }));
+        };
 
-    // Connect to WebSocket
-    connectWebSocket();
+        websocket.onclose = () => {
+          console.log('WebSocket connection closed');
+          setWs(null);
+          setWsConnected(false);
+          // Reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000);
+        };
 
-    // Fetch vessels every 5 seconds
-    const interval = setInterval(fetchVessels, 5000);
-    fetchVessels();
+        websocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setWsConnected(false);
+        };
 
-    return () => {
-      clearInterval(interval);
-      if (wsSocket) {
-        wsSocket.close();
+        websocket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('Fleet Command received:', message);
+            
+            if (message.type === 'vessel-status-update') {
+              // Update vessel status
+              setVessels(prevVessels => 
+                prevVessels.map(vessel => 
+                  vessel.id === message.vessel.id 
+                    ? { ...vessel, status: message.vessel.status }
+                    : vessel
+                )
+              );
+              
+              // Update position if provided
+              if (message.vessel.position) {
+                setPositions(prevPositions => ({
+                  ...prevPositions,
+                  [message.vessel.id]: message.vessel.position
+                }));
+              }
+              
+              setLastUpdate(new Date());
+            } else if (message.type === 'vessel-update') {
+              // Update vessel position
+              if (message.vessel.position) {
+                setPositions(prevPositions => ({
+                  ...prevPositions,
+                  [message.vessel.id]: message.vessel.position
+                }));
+              }
+              setLastUpdate(new Date());
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+      } catch (error) {
+        console.error('Failed to connect to WebSocket:', error);
+        setTimeout(connectWebSocket, 5000);
       }
     };
+
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const checkSupabaseConnection = async () => {
-    try {
-      const connected = await checkConnection();
-      setSupabaseConnected(connected);
-    } catch (error) {
-      console.error('Supabase connection check failed:', error);
-      setSupabaseConnected(false);
-    }
+  // Calculate dynamic fleet stats
+  const getFleetStats = () => {
+    const activeVessels = vessels.filter(v => v.status === 'active').length;
+    const offlineVessels = vessels.filter(v => v.status === 'offline').length;
+    const totalPositions = Object.keys(positions).length;
+    
+    return { activeVessels, offlineVessels, totalPositions };
   };
 
-  const connectWebSocket = () => {
-    try {
-      const ws = new WebSocket(WS_URL);
-      
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setWsConnected(true);
-        ws.send(JSON.stringify({ type: 'fleet-command-connected' }));
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        setWsConnected(false);
-        // Reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setWsConnected(false);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          console.log('WebSocket message:', message);
-          if (message.type === 'vessel-update') {
-            fetchVessels();
-          }
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
-      };
-
-      setWsSocket(ws);
-    } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
-      setWsConnected(false);
-    }
-  };
-
-  const fetchVessels = async () => {
-    try {
-      const vesselData = await getAllVessels();
-      setVessels(vesselData);
-    } catch (error) {
-      console.error('Failed to fetch vessels:', error);
-    }
-  };
+  const stats = getFleetStats();
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>🚢 Fleet Command Center</h1>
-        
-        <div className="connection-status">
-          <div className={`status ${supabaseConnected ? 'connected' : 'disconnected'}`}>
-            <span className="indicator"></span>
-            Supabase: {supabaseConnected ? 'Connected' : 'Disconnected'}
-          </div>
-          <div className={`status ${wsConnected ? 'connected' : 'disconnected'}`}>
-            <span className="indicator"></span>
-            WebSocket: {wsConnected ? 'Connected' : 'Disconnected'}
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-900 p-4">
+      {/* Header */}
+      <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg mb-6">
+        <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-4 rounded-t-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Compass className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Fleet Command Center</h1>
+                <p className="text-white/80">Maritime Operations Control</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {wsConnected ? (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-600/20 border border-green-500/30 rounded-lg">
+                  <Wifi className="w-4 h-4 text-green-400" />
+                  <span className="text-green-300 text-sm font-medium">Live Data</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/30 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                  <span className="text-red-300 text-sm font-medium">Offline Mode</span>
+                </div>
+              )}
+              
+              <div className="text-right text-white text-xs">
+                <div>Last update: {lastUpdate.toLocaleTimeString()}</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="vessels-section">
-          <h2>Active Vessels ({vessels.length})</h2>
-          {vessels.length === 0 ? (
-            <p className="no-vessels">No vessels registered</p>
-          ) : (
-            <div className="vessels-grid">
-              {vessels.map((vessel) => (
-                <div key={vessel.id} className="vessel-card">
-                  <h3>{vessel.name}</h3>
-                  <div className={`vessel-status ${vessel.status}`}>
-                    Status: {vessel.status}
-                  </div>
-                  <div className="vessel-details">
-                    <small>ID: {vessel.id}</small>
-                    {vessel.last_position && (
-                      <div>Position: {JSON.stringify(vessel.last_position)}</div>
-                    )}
-                    <div>Last seen: {new Date(vessel.created_at || '').toLocaleString()}</div>
+        {/* Fleet Stats */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Activity className="w-6 h-6 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold text-green-600">{stats.activeVessels}</p>
+                  <p className="text-sm text-green-700">Active Vessels</p>
+                </div>
+              </div>
+            </div>
+            
+            {stats.offlineVessels > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">{stats.offlineVessels}</p>
+                    <p className="text-sm text-red-700">Offline Vessels</p>
                   </div>
                 </div>
-              ))}
+              </div>
+            )}
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Ship className="w-6 h-6 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{vessels.length}</p>
+                  <p className="text-sm text-blue-700">Total Fleet</p>
+                </div>
+              </div>
             </div>
-          )}
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Compass className="w-6 h-6 text-gray-600" />
+                <div>
+                  <p className="text-2xl font-bold text-gray-600">{stats.totalPositions}</p>
+                  <p className="text-sm text-gray-700">Tracked Positions</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
+
+      {/* Fleet Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Map Placeholder */}
+        <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
+          <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-4 rounded-t-lg">
+            <h2 className="text-xl font-semibold text-white">Fleet Positions</h2>
+          </div>
+          <div className="p-4">
+            <div className="h-96 rounded-lg bg-blue-900/50 border border-blue-600/30 flex items-center justify-center">
+              <div className="text-center">
+                <Compass className="w-16 h-16 mx-auto mb-4 text-blue-400" />
+                <p className="text-blue-200 text-lg font-semibold">Interactive Map</p>
+                <p className="text-blue-300 text-sm">3 vessels tracked in Pacific waters</p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {vessels.map((vessel) => (
+                    <div key={vessel.id} className="bg-blue-800/50 rounded px-2 py-1">
+                      <div className={`w-2 h-2 rounded-full mx-auto mb-1 ${vessel.status === 'offline' ? 'bg-red-400' : 'bg-green-400'}`}></div>
+                      <div className={`text-xs ${vessel.status === 'offline' ? 'text-red-200' : 'text-blue-200'}`}>{vessel.name.split(' ')[0]}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vessel List */}
+        <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
+          <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-4 rounded-t-lg">
+            <h2 className="text-xl font-semibold text-white">Vessel Status</h2>
+          </div>
+          <div className="p-4 space-y-4">
+            {vessels.map((vessel) => {
+              const position = positions[vessel.id];
+              return (
+                <div key={vessel.id} className={`bg-white/5 border rounded-lg p-4 ${vessel.status === 'offline' ? 'border-red-500/30 bg-red-900/10' : 'border-white/10'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-white">{vessel.name}</h3>
+                      <p className="text-sm text-gray-300">{vessel.type} vessel</p>
+                      {position && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {position.latitude.toFixed(4)}°, {position.longitude.toFixed(4)}°
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${vessel.status === 'offline' ? 'text-red-400' : 'text-green-400'}`}>
+                        {vessel.status === 'offline' ? 'OFFLINE' : 'ACTIVE'}
+                      </div>
+                      {position && vessel.status === 'active' && (
+                        <div className="text-xs text-gray-400">
+                          {position.speed.toFixed(1)} kt
+                        </div>
+                      )}
+                      {vessel.status === 'offline' && (
+                        <div className="text-xs text-red-300">
+                          Connection lost
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

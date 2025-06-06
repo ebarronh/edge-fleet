@@ -96,11 +96,32 @@ class EdgeFleetWebSocketServer {
           this.broadcastToFleetCommand({
             type: 'vessel-update',
             vessel: {
-              id: client.id,
-              name: client.name,
-              position: message.vessel?.position
+              id: message.vessel?.id || client.id,
+              name: message.vessel?.name || client.name,
+              position: message.vessel?.position,
+              timestamp: message.vessel?.timestamp
             }
           });
+          break;
+
+        case 'vessel-status-update':
+          console.log(`Status update from ${client.name}: ${message.vessel?.status}`);
+          // Update client status in our records
+          if (message.vessel?.status) {
+            (client as any).status = message.vessel.status;
+          }
+          this.broadcastToFleetCommand({
+            type: 'vessel-status-update',
+            vessel: {
+              id: message.vessel?.id || client.id,
+              name: message.vessel?.name || client.name,
+              status: message.vessel?.status,
+              position: message.vessel?.position,
+              sensorData: message.vessel?.sensorData,
+              timestamp: message.vessel?.timestamp
+            }
+          });
+          this.broadcastUpdate();
           break;
 
         default:

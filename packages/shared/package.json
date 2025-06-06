@@ -1,0 +1,36 @@
+{
+  "name": "@edge-fleet/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "dexie": "^3.2.4",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.263.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.1.2",
+    "react": "^19.1.0",
+    "vitest": "^1.0.4",
+    "jsdom": "^23.0.1",
+    "fake-indexeddb": "^6.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0"
+  }
+}

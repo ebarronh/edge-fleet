@@ -2,6 +2,51 @@
 
 A comprehensive maritime operations platform demonstrating **offline-first architecture**, **real-time WebSocket communication**, and **edge computing** capabilities for fleet management. Built as a modern monorepo showcasing distributed systems, data synchronization, and maritime-specific UI/UX patterns.
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="screenshots/fleet-command-home.png" alt="Fleet Command Center Dashboard" width="800">
+  <p><em>Fleet Command Center - Real-time vessel monitoring and fleet overview</em></p>
+  
+  <img src="screenshots/vessel-home.png" alt="Vessel Bridge Dashboard" width="800">
+  <p><em>Vessel Bridge System - Engine monitoring with animated gauges</em></p>
+  
+  <img src="screenshots/sync-dashboard.png" alt="Sync Verification Dashboard" width="800">
+  <p><em>Sync Verification - Data integrity and compression metrics</em></p>
+</div>
+
+## 🎯 Product Manager's Perspective
+
+This project emerged from a product management exercise exploring edge computing benefits in maritime operations. Following the scientific method approach where **every feature is an experiment**, this platform demonstrates how offline-first architecture can revolutionize distributed systems.
+
+### Why EdgeFleet?
+
+As a Product Manager, I identified several key problems in maritime operations:
+- **Connectivity Challenges**: Vessels operate in remote areas with unreliable internet
+- **Data Costs**: Satellite bandwidth is expensive ($50-100/MB)
+- **Operational Continuity**: Systems must function without cloud connectivity
+- **Real-time Coordination**: Fleet visibility is critical for operations
+
+EdgeFleet serves as a proof-of-concept showing how edge computing can address these challenges while reducing operational costs and improving reliability.
+
+### Development Process
+
+This project was built using a structured approach:
+1. **[Phase 1 Technical Specification](specs/phase-1.md)** - Detailed requirements for offline-first implementation
+2. **[Product Requirements Document (PRD)](docs/phase-1-prd.md)** - Scientific experiment-based feature development
+3. **Iterative Development** - Built with Claude Code following test-driven development principles
+
+### The PRD as a Living Document
+
+Our PRD follows the principle that **product documentation should evolve with learnings**. Unlike traditional waterfall specifications, this PRD:
+
+- **Updates with Results**: Each experiment section includes actual metrics alongside targets
+- **Documents Failures**: Failed hypotheses are as valuable as successful ones
+- **Guides Future Work**: Phase 2 experiments are based on Phase 1 learnings
+- **Maintains History**: Version control tracks how our understanding evolved
+
+This approach ensures that the PRD remains a valuable reference throughout the product lifecycle, not just a planning artifact.
+
 ## 🌊 What is EdgeFleet?
 
 EdgeFleet simulates a real-world maritime operations environment where vessels operate in remote areas with intermittent connectivity. It demonstrates:

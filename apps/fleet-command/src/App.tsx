@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Compass, Ship, Activity, AlertTriangle, Wifi, Clock, MapPin } from 'lucide-react';
 import { db } from '@edge-fleet/shared';
-import type { Vessel, Position } from '@edge-fleet/shared';
+import type { Vessel } from '@edge-fleet/shared';
 import { SyncVerificationDashboard } from './components/SyncVerificationDashboard';
+import { SimpleMap } from './components/SimpleMap';
+import { MapErrorBoundary } from './components/MapWrapper';
+
+// Helper function to get vessel display info
+const getVesselDisplayInfo = (vesselId: string, vesselType: string) => {
+  const vesselInfo: Record<string, { emoji: string; color: string }> = {
+    'vessel-3001': { emoji: '🚢', color: 'from-blue-600/80 to-indigo-600/80' },
+    'vessel-3002': { emoji: '⛴️', color: 'from-emerald-600/80 to-teal-600/80' },
+    'vessel-3003': { emoji: '🛳️', color: 'from-purple-600/80 to-pink-600/80' }
+  };
+  
+  return vesselInfo[vesselId] || { 
+    emoji: vesselType === 'cargo' ? '🚢' : vesselType === 'tanker' ? '⛴️' : '🛳️',
+    color: 'from-gray-600/80 to-gray-700/80'
+  };
+};
 
 function App() {
   const [vessels, setVessels] = useState<Vessel[]>([]);
@@ -25,14 +41,19 @@ function App() {
         setVessels(allVessels);
         
         // Load latest positions for each vessel
-        const positions: Record<string, Position> = {};
+        const positionsMap: Record<string, { latitude: number; longitude: number; speed: number; heading: number }> = {};
         for (const vessel of allVessels) {
           const latestPosition = await db.getVesselLatestPosition(vessel.id);
           if (latestPosition) {
-            positions[vessel.id] = latestPosition;
+            positionsMap[vessel.id] = {
+              latitude: latestPosition.latitude,
+              longitude: latestPosition.longitude,
+              speed: latestPosition.speed,
+              heading: latestPosition.heading
+            };
           }
         }
-        setPositions(positions as any);
+        setPositions(positionsMap);
       } catch (error) {
         console.error('Failed to load vessels from IndexedDB:', error);
       }
@@ -245,81 +266,38 @@ function App() {
 
       {/* Fleet Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Map Placeholder */}
+        {/* Fleet Map */}
         <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
           <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-4 rounded-t-lg">
-            <h2 className="text-xl font-semibold text-white">Fleet Positions</h2>
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Fleet Positions
+            </h2>
           </div>
           <div className="p-4">
-            <div className="h-96 rounded-lg bg-blue-900/50 border border-blue-600/30 flex items-center justify-center">
-              <div className="text-center">
-                <Compass className="w-16 h-16 mx-auto mb-4 text-blue-400" />
-                <p className="text-blue-200 text-lg font-semibold">Fleet Tracking Map</p>
-                <p className="text-blue-300 text-sm">{vessels.length} vessels in Pacific shipping lanes</p>
-                
-                {/* Vessel Position Grid */}
-                <div className="mt-6 relative">
-                  <div className="bg-blue-950/50 rounded-lg p-4 border border-blue-600/20">
-                    {/* Pacific Ocean Grid */}
-                    <div className="grid grid-cols-6 gap-1 mb-2">
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <div key={i} className="h-8 bg-blue-900/20 rounded border border-blue-700/10"></div>
-                      ))}
-                    </div>
-                    
-                    {/* Vessel Markers */}
-                    <div className="absolute inset-4">
-                      {vessels.map((vessel, index) => {
-                        const position = positions[vessel.id];
-                        const xPos = position ? ((position.longitude + 125) / 5) * 100 : (index * 33);
-                        const yPos = position ? ((40 - position.latitude) / 5) * 100 : 50;
-                        
-                        return (
-                          <div 
-                            key={vessel.id}
-                            className="absolute transition-all duration-1000"
-                            style={{ 
-                              left: `${Math.max(0, Math.min(95, xPos))}%`, 
-                              top: `${Math.max(0, Math.min(95, yPos))}%`,
-                              transform: 'translate(-50%, -50%)'
-                            }}
-                          >
-                            <div className="relative group">
-                              <div className={`w-3 h-3 rounded-full ${
-                                vessel.status === 'offline' ? 'bg-red-500' : 'bg-green-500'
-                              } animate-pulse`}></div>
-                              
-                              {/* Tooltip */}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                <div className="bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                                  {vessel.name}
-                                  {position && (
-                                    <div className="text-gray-400">
-                                      {position.speed.toFixed(1)} kt
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {/* Legend */}
-                    <div className="flex justify-center gap-4 mt-4 text-xs">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-green-400">Active</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        <span className="text-red-400">Offline</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="h-96">
+              <MapErrorBoundary>
+                <SimpleMap 
+                  vessels={vessels.map(vessel => {
+                    const position = positions[vessel.id];
+                    const displayInfo = getVesselDisplayInfo(vessel.id, vessel.type);
+                    return {
+                      id: vessel.id,
+                      name: vessel.name,
+                      type: vessel.type,
+                      status: vessel.status,
+                      position: position || { 
+                        latitude: 37.7749, 
+                        longitude: -122.4194, 
+                        heading: 0, 
+                        speed: 0 
+                      },
+                      emoji: displayInfo.emoji,
+                      color: displayInfo.color
+                    };
+                  })}
+                />
+              </MapErrorBoundary>
             </div>
           </div>
         </div>
@@ -332,11 +310,15 @@ function App() {
           <div className="p-4 space-y-4">
             {vessels.map((vessel) => {
               const position = positions[vessel.id];
+              const displayInfo = getVesselDisplayInfo(vessel.id, vessel.type);
               return (
                 <div key={vessel.id} className={`bg-white/5 border rounded-lg p-4 ${vessel.status === 'offline' ? 'border-red-500/30 bg-red-900/10' : 'border-white/10'}`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-white">{vessel.name}</h3>
+                      <h3 className="font-semibold text-white flex items-center gap-2">
+                        <span className="text-2xl">{displayInfo.emoji}</span>
+                        {vessel.name}
+                      </h3>
                       <p className="text-sm text-gray-300">{vessel.type} vessel</p>
                       {position && (
                         <p className="text-xs text-gray-400 mt-1">

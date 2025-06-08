@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Anchor, Compass, MapPin, Zap, Wifi, Database, CloudOff, Cloud } from 'lucide-react';
+import { Compass, MapPin, Zap, Wifi, Database, CloudOff, Cloud } from 'lucide-react';
 import { db, offlineManager } from '@edge-fleet/shared';
 import type { ConnectionStatus } from '@edge-fleet/shared';
 import { AnimatedGauge } from './components/AnimatedGauge';
@@ -20,27 +20,35 @@ const getVesselData = (vesselId: string) => {
     type: string;
     status: string;
     position: { latitude: number; longitude: number; speed: number; heading: number };
+    emoji: string;
+    color: string;
   }> = {
     'vessel-3001': {
       id: 'vessel-3001',
       name: 'MV Pacific Explorer',
       type: 'cargo',
       status: 'active',
-      position: { latitude: 37.7749, longitude: -122.4194, speed: 12.5, heading: 245 }
+      position: { latitude: 37.7749, longitude: -122.4194, speed: 12.5, heading: 245 },
+      emoji: '🚢',
+      color: 'from-blue-600/80 to-indigo-600/80'
     },
     'vessel-3002': {
       id: 'vessel-3002', 
       name: 'SS Northern Star',
       type: 'tanker',
       status: 'active',
-      position: { latitude: 38.1749, longitude: -123.4194, speed: 8.2, heading: 180 }
+      position: { latitude: 38.1749, longitude: -123.4194, speed: 8.2, heading: 180 },
+      emoji: '⛴️',
+      color: 'from-emerald-600/80 to-teal-600/80'
     },
     'vessel-3003': {
       id: 'vessel-3003',
       name: 'MV Coastal Pioneer', 
       type: 'container',
       status: 'active',
-      position: { latitude: 39.2749, longitude: -121.4194, speed: 15.1, heading: 95 }
+      position: { latitude: 39.2749, longitude: -121.4194, speed: 15.1, heading: 95 },
+      emoji: '🛳️',
+      color: 'from-purple-600/80 to-pink-600/80'
     }
   };
   
@@ -73,6 +81,9 @@ function App() {
   useEffect(() => {
     const initVessel = async () => {
       try {
+        // Set document title with emoji
+        document.title = `${vesselData.emoji} ${vesselData.name} - Bridge Control`;
+        
         // Check if vessel exists
         const existingVessel = await db.vessels.get(VESSEL_ID);
         if (!existingVessel) {
@@ -334,14 +345,17 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-4">
       {/* Header */}
       <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg mb-6">
-        <div className="bg-gradient-to-r from-blue-600/80 to-indigo-600/80 p-4 rounded-t-lg">
+        <div className={`bg-gradient-to-r ${vesselData.color} p-4 rounded-t-lg`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Anchor className="w-8 h-8 text-white" />
+              <div className="p-2 bg-white/20 rounded-lg flex items-center justify-center">
+                <span className="text-4xl">{vesselData.emoji}</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">{vesselData.name}</h1>
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                  {vesselData.name}
+                  <span className="text-white/60 text-sm font-normal">({vesselData.type.toUpperCase()})</span>
+                </h1>
                 <p className="text-white/80">Bridge Control System</p>
               </div>
             </div>
@@ -462,7 +476,7 @@ function App() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Engine Systems */}
         <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
-          <div className="bg-gradient-to-r from-green-600/80 to-emerald-600/80 p-4 rounded-t-lg">
+          <div className={`bg-gradient-to-r ${vesselData.color} p-4 rounded-t-lg`}>
             <h2 className="text-xl font-semibold text-white">Engine Systems</h2>
           </div>
           <div className="p-6">
@@ -505,7 +519,7 @@ function App() {
 
         {/* Navigation */}
         <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
-          <div className="bg-gradient-to-r from-blue-600/80 to-cyan-600/80 p-4 rounded-t-lg">
+          <div className={`bg-gradient-to-r ${vesselData.color} p-4 rounded-t-lg`}>
             <h2 className="text-xl font-semibold text-white">Navigation</h2>
           </div>
           <div className="p-6">

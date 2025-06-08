@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, AlertTriangle, Database, Cloud, TrendingDown, DollarSign } from 'lucide-react';
 import { db } from '@edge-fleet/shared';
 
@@ -34,13 +34,7 @@ export default function SyncVerification({ vesselId, showAutomatically, onClose 
   const [loading, setLoading] = useState(true);
   const [isVisible, setIsVisible] = useState(showAutomatically);
 
-  useEffect(() => {
-    if (isVisible) {
-      loadSyncStats();
-    }
-  }, [vesselId, isVisible]);
-
-  const loadSyncStats = async () => {
+  const loadSyncStats = useCallback(async () => {
     setLoading(true);
     try {
       // Query Dexie for local record counts
@@ -86,7 +80,13 @@ export default function SyncVerification({ vesselId, showAutomatically, onClose 
     } finally {
       setLoading(false);
     }
-  };
+  }, [vesselId]);
+
+  useEffect(() => {
+    if (isVisible) {
+      loadSyncStats();
+    }
+  }, [vesselId, isVisible, loadSyncStats]);
 
   const getStatusIcon = () => {
     if (!stats) return null;

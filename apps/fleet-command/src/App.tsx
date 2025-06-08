@@ -3,7 +3,7 @@ import { Compass, Ship, Activity, AlertTriangle, Wifi, Clock, MapPin } from 'luc
 import { db } from '@edge-fleet/shared';
 import type { Vessel } from '@edge-fleet/shared';
 import { SyncVerificationDashboard } from './components/SyncVerificationDashboard';
-import { VesselMap } from './components/VesselMap';
+import { SimpleMap } from './components/SimpleMap';
 import { MapErrorBoundary } from './components/MapWrapper';
 
 // Helper function to get vessel display info
@@ -277,7 +277,7 @@ function App() {
           <div className="p-4">
             <div className="h-96">
               <MapErrorBoundary>
-                <VesselMap 
+                <SimpleMap 
                   vessels={vessels.map(vessel => {
                     const position = positions[vessel.id];
                     const displayInfo = getVesselDisplayInfo(vessel.id, vessel.type);

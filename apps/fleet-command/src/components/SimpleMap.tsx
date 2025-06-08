@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { MapPin } from 'lucide-react';
 
 interface VesselPosition {
